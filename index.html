@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Royal Brothers — Fleet ROI Operations Dashboard</title>
+<!-- CHANGE 1: Added &display=swap so text renders instantly with fallbacks while fonts load -->
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #F5A623;
+    --gold-bright: #FFB93E;
+    --gold-dim: #C4841A;
+    --gold-glow: rgba(245,166,35,0.18);
+    --gold-trace: rgba(245,166,35,0.08);
+    --black: #0A0A0A;
+    --black2: #111111;
+    --black3: #161616;
+    --black4: #1E1E1E;
+    --black5: #252525;
+    --white: #F0EDE8;
+    --gray: #888;
+    --gray2: #555;
+    --red: #E74C3C;
+    --green: #2ECC71;
+    --blue: #3498DB;
+    /* CHANGE 2: Added robust system-font fallbacks so page never shows blank */
+    --font-display: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Courier New', Courier, monospace;
+    --font-body: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 10% 0%, rgba(245,166,35,0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 60% at 90% 100%, rgba(245,166,35,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(245,166,35,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(245,166,35,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; padding: 0 0 40px; }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid rgba(245,166,35,0.25);
+    background: rgba(10,10,10,0.92);
+    backdrop-filter: blur(12px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo-zone { display: flex; align-items: center; gap: 14px; }
+
+  .logo-badge {
+    width: 44px; height: 44px;
+    background: var(--gold);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--black);
+    letter-spacing: 1px;
+    box-shadow: 0 0 20px rgba(245,166,35,0.4);
+  }
+
+  .logo-text { line-height: 1; }
+  .logo-text .brand { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--gold); letter-spacing: 2px; }
+  .logo-text .sub { font-size: 11px; color: var(--gray); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+  .header-center { text-align: center; }
+  .header-center .title { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--white); }
+  .header-center .subtitle { font-size: 11px; color: var(--gray); margin-top: 2px; letter-spacing: 1px; }
+
+  .header-right { display: flex; align-items: center; gap: 20px; }
+
+  .live-badge {
+    display: flex; align-items: center; gap: 7px;
+    background: rgba(46,204,113,0.12);
+    border: 1px solid rgba(46,204,113,0.3);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--green);
+    letter-spacing: 1px;
+  }
+
+  .live-dot {
+    width: 7px; height: 7px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse-green 1.4s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--green);
+  }
+
+  @keyframes pulse-green {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.7); }
+  }
+
+  .clock { font-family: var(--font-mono); font-size: 13px; color: var(--gray); }
+
+  /* ── SECTIONS ── */
+  .section { padding: 24px 28px 0; }
+  .section-label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(245,166,35,0.3), transparent); }
+
+  /* ── TOP KPI STRIP ── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    padding: 20px 28px 0;
+  }
+
+  .kpi-card {
+    background: var(--black3);
+    border: 1px solid rgba(245,166,35,0.15);
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .kpi-card:hover { border-color: rgba(245,166,35,0.4); }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--gold), transparent);
+    opacity: 0.6;
+  }
+
+  .kpi-label { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray); margin-bottom: 8px; }
+  .kpi-value { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--gold); line-height: 1; }
+  .kpi-target { font-size: 10px; color: var(--gray2); margin-top: 4px; }
+  .kpi-trend {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-family: var(--font-mono);
+    margin-top: 6px;
+    padding: 2px 7px;
+    border-radius: 12px;
+  }
+  .kpi-trend.up { background: rgba(46,204,113,0.12); color: var(--green); }
+  .kpi-trend.down { background: rgba(231,76,60,0.12); color: var(--red); }
+  .kpi-trend.neutral { background: rgba(245,166,35,0.12); color: var(--gold); }
+
+  /* ── MAIN GRID ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 380px;
+    gap: 16px;
+    padding: 20px 28px 0;
+  }
+
+  .card {
+    background: var(--black3);
+    border: 1px solid rgba(245,166,35,0.12);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 16px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-badge {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-family: var(--font-mono);
+    background: var(--gold-trace);
+    border: 1px solid rgba(245,166,35,0.2);
+    color: var(--gold-dim);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  /* ── UTILIZATION RING ── */
+  .util-display { display: flex; align-items: center; gap: 24px; }
+  .ring-wrap { position: relative; width: 130px; height: 130px; flex-shrink: 0; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-center {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .ring-pct { font-family: var(--font-display); font-size: 30px; font-weight: 700; color: var(--gold); line-height: 1; }
+  .ring-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--gray); margin-top: 2px; }
+
+  .util-zones { flex: 1; }
+  .zone-bar { margin-bottom: 10px; }
+  .zone-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--gray); margin-bottom: 4px; }
+  .zone-header span:last-child { font-family: var(--font-mono); }
+  .bar-track { height: 6px; background: var(--black5); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+  /* ── CHART BARS ── */
+  .chart-area { position: relative; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 120px; padding-bottom: 24px; position: relative; }
+  .bar-chart::before {
+    content: '';
+    position: absolute; bottom: 24px; left: 0; right: 0;
+    height: 1px;
+    background: rgba(245,166,35,0.1);
+  }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .bar-col .bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: height 1s ease;
+    position: relative;
+    cursor: pointer;
+  }
+  .bar-col .bar:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%; transform: translateX(-50%);
+    background: var(--black4);
+    border: 1px solid var(--gold-dim);
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 10px;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    color: var(--gold);
+    z-index: 10;
+  }
+  .bar-col .blabel { font-size: 9px; color: var(--gray2); text-align: center; }
+
+  /* ── REVENUE CHART ── */
+  .rev-chart { position: relative; height: 140px; }
+  .rev-svg { width: 100%; height: 100%; }
+
+  /* ── ZONE TABLE ── */
+  .zone-table { width: 100%; border-collapse: collapse; }
+  .zone-table th { text-align: left; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gray2); padding: 0 0 10px; font-weight: 500; }
+  .zone-table td { font-size: 12px; padding: 8px 0; border-top: 1px solid rgba(255,255,255,0.05); }
+  .zone-table td:last-child { text-align: right; }
+  .util-pill {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .zone-mono { font-family: var(--font-mono); font-size: 11px; }
+
+  /* ── INPUT PANEL ── */
+  .input-panel { display: flex; flex-direction: column; gap: 14px; }
+  .input-group label {
+    display: block;
+    font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--gray); margin-bottom: 7px;
+  }
+  .input-row { display: flex; gap: 8px; }
+  .inp {
+    flex: 1;
+    background: var(--black4);
+    border: 1px solid rgba(245,166,35,0.2);
+    border-radius: 7px;
+    padding: 9px 12px;
+    color: var(--white);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+  .inp:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(245,166,35,0.12);
+  }
+  .inp::placeholder { color: var(--gray2); font-size: 12px; }
+  .inp-unit {
+    background: var(--black5);
+    border: 1px solid rgba(245,166,35,0.15);
+    border-radius: 7px;
+    padding: 9px 10px;
+    color: var(--gray);
+    font-size: 11px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    display: flex; align-items: center;
+  }
+
+  .calc-result {
+    background: var(--gold-trace);
+    border: 1px solid rgba(245,166,35,0.2);
+    border-radius: 9px;
+    padding: 14px;
+    margin-top: 4px;
+  }
+  .calc-result .calc-label { font-size: 10px; color: var(--gray); letter-spacing: 1px; margin-bottom: 4px; }
+  .calc-result .calc-val { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--gold); }
+  .calc-result .calc-sub { font-size: 10px; color: var(--gray2); margin-top: 2px; font-family: var(--font-mono); }
+
+  /* ── SECOND GRID ── */
+  .second-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    padding: 16px 28px 0;
+  }
+
+  /* ── MAINTENANCE GAUGE ── */
+  .maint-bar-wrap { position: relative; height: 16px; background: var(--black5); border-radius: 8px; overflow: hidden; margin: 8px 0; }
+  .maint-bar-fill { height: 100%; border-radius: 8px; transition: width 1s ease, background 0.5s; }
+  .maint-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.05); }
+  .maint-row:first-child { border-top: none; }
+  .maint-name { font-size: 12px; color: var(--gray); }
+  .maint-val { font-family: var(--font-mono); font-size: 12px; }
+
+  /* ── ALERTS ── */
+  .alert-list { display: flex; flex-direction: column; gap: 8px; }
+  .alert-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 3px solid;
+    background: rgba(255,255,255,0.03);
+    animation: slideIn 0.4s ease;
+  }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: translateX(0); } }
+  .alert-item.warn { border-color: var(--gold); }
+  .alert-item.danger { border-color: var(--red); }
+  .alert-item.ok { border-color: var(--green); }
+  .alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .alert-content { flex: 1; }
+  .alert-msg { font-size: 12px; color: var(--white); }
+  .alert-time { font-size: 10px; color: var(--gray2); font-family: var(--font-mono); margin-top: 2px; }
+
+  /* ── TICKER ── */
+  .ticker-wrap {
+    overflow: hidden;
+    background: linear-gradient(90deg, var(--black), rgba(245,166,35,0.05), var(--black));
+    border-top: 1px solid rgba(245,166,35,0.15);
+    border-bottom: 1px solid rgba(245,166,35,0.15);
+    padding: 8px 0;
+    margin: 20px 0 0;
+  }
+  .ticker-inner {
+    display: flex;
+    white-space: nowrap;
+    animation: ticker 40s linear infinite;
+    gap: 60px;
+  }
+  @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .tick-item { font-family: var(--font-mono); font-size: 11px; color: var(--gray); display: inline-flex; gap: 8px; }
+  .tick-key { color: var(--gold-dim); }
+  .tick-sep { color: rgba(245,166,35,0.2); }
+
+  /* ── PROGRESS RING ANIMATION ── */
+  @keyframes ring-fill { from { stroke-dashoffset: 326; } to { stroke-dashoffset: var(--target-offset); } }
+  .ring-path { animation: ring-fill 2s cubic-bezier(0.4,0,0.2,1) forwards; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--black2); }
+  ::-webkit-scrollbar-thumb { background: rgba(245,166,35,0.3); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="logo-zone">
+      <div class="logo-badge">RB</div>
+      <div class="logo-text">
+        <div class="brand">ROYAL BROTHERS</div>
+        <div class="sub">Fleet Operations Intelligence</div>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="title">Fleet ROI — Live Operations Dashboard</div>
+      <div class="subtitle">Bengaluru Command Centre &nbsp;|&nbsp; Data refreshes every 5 seconds</div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        LIVE
+      </div>
+      <div class="clock" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- TICKER -->
+  <div class="ticker-wrap">
+    <div class="ticker-inner" id="ticker"></div>
+  </div>
+
+  <!-- KPI STRIP -->
+  <div class="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-label">Fleet Utilization</div>
+      <div class="kpi-value" id="kpi-util">65.0%</div>
+      <div class="kpi-target">Target: 82%</div>
+      <div class="kpi-trend up" id="trend-util">↑ Live</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">RevPAVD</div>
+      <div class="kpi-value" id="kpi-rev">₹2,340</div>
+      <div class="kpi-target">Target: ₹2,850</div>
+      <div class="kpi-trend neutral" id="trend-rev">— Tracking</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Avg Daily Rate</div>
+      <div class="kpi-value" id="kpi-adr">₹980</div>
+      <div class="kpi-target">Target: ₹1,200</div>
+      <div class="kpi-trend up" id="trend-adr">↑ +2.1%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Maint Cost %</div>
+      <div class="kpi-value" id="kpi-maint">35.0%</div>
+      <div class="kpi-target">Target: &lt;25%</div>
+      <div class="kpi-trend down" id="trend-maint">↓ High</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Demand Fulfilled</div>
+      <div class="kpi-value" id="kpi-demand">84.0%</div>
+      <div class="kpi-target">Target: &gt;95%</div>
+      <div class="kpi-trend up" id="trend-demand">↑ Improving</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Turnaround Time</div>
+      <div class="kpi-value" id="kpi-tat">6.5h</div>
+      <div class="kpi-target">Target: &lt;4h</div>
+      <div class="kpi-trend down" id="trend-tat">↓ Reduce</div>
+    </div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- UTILIZATION -->
+    <div class="card">
+      <div class="card-title">Zone Utilization <span class="card-badge" id="active-count">— vehicles active</span></div>
+      <div class="util-display">
+        <div class="ring-wrap">
+          <svg viewBox="0 0 120 120" width="130" height="130">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(245,166,35,0.08)" stroke-width="12"/>
+            <circle id="ring-path" cx="60" cy="60" r="52" fill="none" stroke="url(#gold-grad)" stroke-width="12"
+              stroke-linecap="round" stroke-dasharray="326" stroke-dashoffset="114" style="transition: stroke-dashoffset 1s ease;"/>
+            <defs>
+              <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#F5A623"/>
+                <stop offset="100%" stop-color="#FFB93E"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="ring-center">
+            <div class="ring-pct" id="ring-pct">65%</div>
+            <div class="ring-label">Utilized</div>
+          </div>
+        </div>
+        <div class="util-zones" id="zone-bars">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- HOURLY DEMAND BAR CHART -->
+    <div class="card">
+      <div class="card-title">Hourly Demand <span class="card-badge" id="hour-badge">Now</span></div>
+      <div class="bar-chart" id="hourly-chart">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- INPUT CALCULATOR PANEL -->
+    <div class="card">
+      <div class="card-title">ROI Simulator</div>
+      <div class="input-panel">
+        <div class="input-group">
+          <label>Fleet Size (vehicles)</label>
+          <div class="input-row">
+            <input class="inp" type="number" id="inp-fleet" value="2000" placeholder="e.g. 2000" min="1" max="10000">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Utilization Rate (%)</label>
+          <div class="input-row">
+            <input class="inp" type="number" id="inp-util" value="65" placeholder="e.g. 82" min="1" max="100">
+            <div class="inp-unit">%</div>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Average Daily Rate (₹)</label>
+          <div class="input-row">
+            <input class="inp" type="number" id="inp-adr" value="980" placeholder="e.g. 980" min="1">
+            <div class="inp-unit">₹/day</div>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Maintenance Cost (%)</label>
+          <div class="input-row">
+            <input class="inp" type="number" id="inp-mc" value="35" placeholder="e.g. 35" min="1" max="100">
+            <div class="inp-unit">%</div>
+          </div>
+        </div>
+        <div class="calc-result">
+          <div class="calc-label">MONTHLY NET REVENUE</div>
+          <div class="calc-val" id="calc-rev">—</div>
+          <div class="calc-sub" id="calc-sub">Enter values above to simulate</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECOND GRID -->
+  <div class="second-grid">
+
+    <!-- MAINTENANCE BREAKDOWN -->
+    <div class="card">
+      <div class="card-title">Maintenance Health</div>
+      <div>
+        <div class="maint-row">
+          <span class="maint-name">Overall Maint Cost</span>
+          <span class="maint-val" id="mm-overall" style="color:var(--red)">35%</span>
+        </div>
+        <div class="maint-bar-wrap">
+          <div class="maint-bar-fill" id="mm-bar" style="width:35%; background: linear-gradient(90deg, #E74C3C, #C0392B);"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--gray2);margin-bottom:12px;">
+          <span>0%</span><span style="color:var(--gold);">Target &lt;25%</span><span>100%</span>
+        </div>
+        <div class="maint-row">
+          <span class="maint-name">Reactive Repairs</span>
+          <span class="maint-val" style="color:var(--red);" id="mm-reactive">67%</span>
+        </div>
+        <div class="maint-row">
+          <span class="maint-name">Preventive Servicing</span>
+          <span class="maint-val" style="color:var(--green);" id="mm-preventive">33%</span>
+        </div>
+        <div class="maint-row">
+          <span class="maint-name">Avg Downtime/Vehicle</span>
+          <span class="maint-val zone-mono" id="mm-downtime">18%</span>
+        </div>
+        <div class="maint-row">
+          <span class="maint-name">Vehicles on Maintenance</span>
+          <span class="maint-val zone-mono" id="mm-count">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE ALERTS -->
+    <div class="card">
+      <div class="card-title">Live Ops Alerts <span class="card-badge" id="alert-count">0 active</span></div>
+      <div class="alert-list" id="alert-list">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- ZONE TABLE -->
+    <div class="card">
+      <div class="card-title">Zone Performance</div>
+      <table class="zone-table">
+        <thead>
+          <tr>
+            <th>Zone</th>
+            <th>Util %</th>
+            <th>RevPAVD</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="zone-table-body">
+          <!-- Populated by JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── STATE ──
+const ZONES = [
+  { name: 'Indiranagar', baseUtil: 91, baseRev: 2980 },
+  { name: 'Koramangala', baseUtil: 87, baseRev: 2850 },
+  { name: 'Whitefield',  baseUtil: 72, baseRev: 2420 },
+  { name: 'HSR Layout',  baseUtil: 68, baseRev: 2240 },
+  { name: 'MG Road',     baseUtil: 78, baseRev: 2650 },
+  { name: 'BTM Layout',  baseUtil: 55, baseRev: 1920 },
+];
+
+const FLEET = 2000;
+let tick = 0;
+
+const ALERTS_POOL = [
+  { type: 'warn', icon: '⚠️', msg: 'Zone BTM Layout: 45% idle — suggest repositioning 12 vehicles' },
+  { type: 'ok',   icon: '✅', msg: 'Dynamic pricing surge active: Indiranagar +22% ADR' },
+  { type: 'danger', icon: '🔴', msg: 'Vehicle RB-1842: Engine health below threshold — schedule immediate service' },
+  { type: 'warn', icon: '⚠️', msg: 'Upcoming demand spike: Nandi Hills trail corridor — weekend forecast +35%' },
+  { type: 'ok',   icon: '✅', msg: 'Fulfillment rate up 2.1% this hour — Koramangala zone optimized' },
+  { type: 'danger', icon: '🔴', msg: 'Turnaround delay detected: 3 vehicles awaiting cleaning >2hrs — Whitefield hub' },
+  { type: 'warn', icon: '⚠️', msg: 'Maintenance cost ratio hit 36.2% — review reactive repair frequency' },
+  { type: 'ok',   icon: '✅', msg: 'RevPAVD trend positive: +₹48 over last 4 hours' },
+];
+
+let alertHistory = [];
+
+// ── CLOCK ──
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-IN', { hour12: false });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── TICKER ──
+function buildTicker() {
+  const items = [
+    ['Fleet Size', '2,000+ vehicles'],
+    ['Active Cities', '40+ cities'],
+    ['FY24 Revenue', '₹38.3 Cr'],
+    ['Growth Rate', '300% YoY'],
+    ['Target Util', '82%'],
+    ['Target ADR', '₹1,200'],
+    ['Target RevPAVD', '₹2,850'],
+    ['Maintenance Target', '<25% of revenue'],
+    ['LTV/CAC Target', '>3:1'],
+    ['Fleet ROI Target', '2.9x'],
+    ['Break-even Reduction', '4 months faster'],
+    ['Demand Fulfillment Target', '>95%'],
+  ];
+  const inner = document.getElementById('ticker');
+  // duplicate for seamless loop
+  const html = [...items, ...items].map(([k, v]) =>
+    `<span class="tick-item"><span class="tick-key">${k}</span><span class="tick-sep">|</span>${v}</span>`
+  ).join('');
+  inner.innerHTML = html;
+}
+buildTicker();
+
+// ── SIMULATE LIVE DATA ──
+function jitter(base, range) {
+  return base + (Math.random() - 0.5) * 2 * range;
+}
+
+function fmt(n) { return n.toLocaleString('en-IN'); }
+function pct(n) { return n.toFixed(1) + '%'; }
+
+function updateKPIs() {
+  const util = jitter(65, 1.5);
+  const revpavd = Math.round(jitter(2340, 60));
+  const adr = Math.round(jitter(980, 25));
+  const maint = jitter(35, 0.8);
+  const demand = jitter(84, 1.2);
+  const tat = jitter(6.5, 0.3).toFixed(1);
+
+  document.getElementById('kpi-util').textContent = pct(util);
+  document.getElementById('kpi-rev').textContent = '₹' + fmt(revpavd);
+  document.getElementById('kpi-adr').textContent = '₹' + fmt(adr);
+  document.getElementById('kpi-maint').textContent = pct(maint);
+  document.getElementById('kpi-demand').textContent = pct(demand);
+  document.getElementById('kpi-tat').textContent = tat + 'h';
+
+  // Update ring
+  const offset = 326 * (1 - util / 100);
+  document.getElementById('ring-path').style.strokeDashoffset = offset;
+  document.getElementById('ring-pct').textContent = Math.round(util) + '%';
+
+  // Active count
+  const active = Math.round((util / 100) * FLEET);
+  document.getElementById('active-count').textContent = fmt(active) + ' active';
+
+  // Maintenance card
+  document.getElementById('mm-overall').textContent = pct(maint);
+  document.getElementById('mm-bar').style.width = maint + '%';
+  const maintColor = maint > 30 ? 'linear-gradient(90deg,#E74C3C,#C0392B)' : maint > 25 ? 'linear-gradient(90deg,#F5A623,#C4841A)' : 'linear-gradient(90deg,#2ECC71,#27AE60)';
+  document.getElementById('mm-bar').style.background = maintColor;
+
+  const reactive = Math.round(jitter(67, 4));
+  document.getElementById('mm-reactive').textContent = reactive + '%';
+  document.getElementById('mm-preventive').textContent = (100 - reactive) + '%';
+  document.getElementById('mm-downtime').textContent = pct(jitter(18, 1));
+  document.getElementById('mm-count').textContent = Math.round(FLEET * maint / 100 * 0.18);
+}
+
+// ── ZONE BARS ──
+function updateZoneBars() {
+  const wrap = document.getElementById('zone-bars');
+  wrap.innerHTML = ZONES.map(z => {
+    const u = Math.round(jitter(z.baseUtil, 3));
+    const color = u >= 80 ? '#2ECC71' : u >= 65 ? '#F5A623' : '#E74C3C';
+    return `
+      <div class="zone-bar">
+        <div class="zone-header">
+          <span>${z.name}</span>
+          <span style="color:${color}">${u}%</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${u}%;background:${color};"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── ZONE TABLE ──
+function updateZoneTable() {
+  const tbody = document.getElementById('zone-table-body');
+  tbody.innerHTML = ZONES.map(z => {
+    const u = Math.round(jitter(z.baseUtil, 3));
+    const r = Math.round(jitter(z.baseRev, 80));
+    const color = u >= 80 ? '#2ECC71' : u >= 65 ? '#F5A623' : '#E74C3C';
+    const status = u >= 80 ? '● Optimal' : u >= 65 ? '◑ Moderate' : '○ Low';
+    const statusColor = u >= 80 ? '#2ECC71' : u >= 65 ? '#F5A623' : '#E74C3C';
+    return `
+      <tr>
+        <td>${z.name}</td>
+        <td class="zone-mono" style="color:${color}">${u}%</td>
+        <td class="zone-mono">₹${fmt(r)}</td>
+        <td style="color:${statusColor};font-size:11px;">${status}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ── HOURLY CHART ──
+const HOURS = ['6a','7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p','8p','9p'];
+const BASE_DEMAND = [30, 55, 80, 92, 75, 65, 60, 62, 68, 78, 85, 95, 90, 78, 65, 50];
+
+function updateHourlyChart() {
+  const chart = document.getElementById('hourly-chart');
+  const currentHour = new Date().getHours();
+  const nowIdx = Math.min(Math.max(currentHour - 6, 0), HOURS.length - 1);
+
+  document.getElementById('hour-badge').textContent = HOURS[nowIdx] || 'Now';
+
+  chart.innerHTML = HOURS.map((h, i) => {
+    const val = Math.min(100, Math.max(10, jitter(BASE_DEMAND[i], 6)));
+    const heightPx = Math.round(val * 0.88);
+    const isNow = i === nowIdx;
+    const isPast = i < nowIdx;
+    const color = isNow ? '#F5A623' : isPast ? 'rgba(245,166,35,0.3)' : 'rgba(245,166,35,0.15)';
+    return `
+      <div class="bar-col">
+        <div class="bar" style="height:${heightPx}px;background:${color};" data-tip="${h}: ${Math.round(val)}%"></div>
+        <div class="blabel">${h}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── ALERTS ──
+function addAlert() {
+  const alert = ALERTS_POOL[Math.floor(Math.random() * ALERTS_POOL.length)];
+  const now = new Date().toLocaleTimeString('en-IN', { hour12: false });
+  alertHistory.unshift({ ...alert, time: now });
+  if (alertHistory.length > 4) alertHistory = alertHistory.slice(0, 4);
+
+  const list = document.getElementById('alert-list');
+  list.innerHTML = alertHistory.map(a => `
+    <div class="alert-item ${a.type}">
+      <span class="alert-icon">${a.icon}</span>
+      <div class="alert-content">
+        <div class="alert-msg">${a.msg}</div>
+        <div class="alert-time">${a.time}</div>
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('alert-count').textContent = alertHistory.length + ' active';
+}
+
+// ── CALCULATOR ──
+function updateCalc() {
+  const fleet = parseFloat(document.getElementById('inp-fleet').value) || 0;
+  const util = parseFloat(document.getElementById('inp-util').value) || 0;
+  const adr = parseFloat(document.getElementById('inp-adr').value) || 0;
+  const mc = parseFloat(document.getElementById('inp-mc').value) || 0;
+
+  if (!fleet || !util || !adr) {
+    document.getElementById('calc-rev').textContent = '—';
+    document.getElementById('calc-sub').textContent = 'Enter values above to simulate';
+    return;
+  }
+
+  const gross = fleet * (util / 100) * adr * 30;
+  const net = gross * (1 - mc / 100);
+  const revpavd = adr * (util / 100);
+
+  document.getElementById('calc-rev').textContent = '₹' + fmt(Math.round(net));
+  document.getElementById('calc-sub').textContent =
+    `Gross ₹${fmt(Math.round(gross))} | RevPAVD ₹${Math.round(revpavd)} | ${fleet} vehicles × ${util}% util × ₹${adr}/day`;
+}
+
+['inp-fleet','inp-util','inp-adr','inp-mc'].forEach(id => {
+  document.getElementById(id).addEventListener('input', updateCalc);
+});
+updateCalc();
+
+// ── MAIN REFRESH LOOP ──
+function refresh() {
+  tick++;
+  updateKPIs();
+  updateZoneBars();
+  updateZoneTable();
+  updateHourlyChart();
+  if (tick % 3 === 0) addAlert(); // new alert every ~15s
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
